@@ -10,7 +10,7 @@
 > Instead of dumping a whole repository (Repomix, gitingest) or whole files into ChatGPT, Claude or Cursor, `ast-pack` parses your repo with **Tree-sitter** into a cross-file call graph, starts at a symbol, `file:line` or raw stack trace, walks callers and callees N hops, pulls in every type definition and constant they use, and prunes everything else into a **syntactically valid** bundle with exact file/line headers.
 > **Install:** `pip install ast-pack` · **Run:** `ast-pack processPayment` · **Measured:** 87–98.7% fewer tokens than the whole repo on Flask, httpx, Gin, chi, Hono, Zod and ripgrep ([benchmarks](benchmarks/RESULTS.md)).
 
-Python · TypeScript · JavaScript/JSX · Go · Rust — CLI, `--json` for agents, MCP server, local HTTP/WebSocket API.
+Python · TypeScript · JavaScript/JSX · Go · Rust — CLI, `--json` for agents, MCP server, local web UI with a live call graph.
 
 ```bash
 pip install ast-pack            # or, before the PyPI release: pipx install git+https://github.com/ginckl/ast-pack
@@ -34,7 +34,8 @@ ast-pack --ui                   # local web app + API
 - [CLI reference](#cli-reference)
 - [JSON output for agents and scripts](#json-output-for-agents-and-scripts)
 - [MCP server (Claude Code, Cursor, Windsurf)](#mcp-server-claude-code-cursor-windsurf)
-- [HTTP / WebSocket API and web UI](#http--websocket-api-and-web-ui)
+- [Web UI](#web-ui-ast-pack---ui)
+- [HTTP / WebSocket API](#http--websocket-api)
 - [Python library API](#python-library-api)
 - [How it works](#how-it-works)
 - [Limitations](#limitations)
@@ -136,6 +137,7 @@ Yes. Pruned regions become comments, and outlined bodies become `...` (Python) o
 | Output stays syntactically valid per file | ✅ verified on 6,605 files | ✅ unmodified files (`--compress` emits fragments) | ✅ unmodified files | ✅ unmodified files | ✅ unmodified files | n/a | ✅ |
 | Token budget that trims by relevance | ✅ `--max-tokens` | counts only | counts only | ❌ | estimate only | ✅ `--map-tokens` | ❌ |
 | Output formats | Markdown, XML, plain, `--json` with [schema](schema.json) | XML, Markdown, plain | Handlebars templates | plain, Claude XML (`--cxml`) | text digest | text map inside aider | — |
+| Interactive UI | ✅ live call graph, depth slider, code preview (`--ui`) | ❌ | ❌ | ❌ | web page (repo digest) | ❌ | — |
 | Agent integration | `--json` on every command, MCP server | MCP server | CLI | CLI | CLI / web | inside aider | — |
 | Install | `pip install ast-pack` | `npx repomix` | `cargo install code2prompt` | `pip install files-to-prompt` | `pip install gitingest` | part of `aider` | — |
 | Bundle for one function in a 100k–1M-token repo | **2k–25k tokens measured** | ≈ whole repo unless you hand-pick files | ≈ whole repo unless filtered | the files you list | ≈ whole repo unless filtered | the configured map size (signatures, no bodies) | whole files |
@@ -308,23 +310,42 @@ Tools: `pack_context(target, depth?, direction?, max_tokens?, format?, repo?)`, 
 
 ---
 
-## HTTP / WebSocket API and web UI
+## Web UI (`ast-pack --ui`)
 
-`ast-pack serve` (or `ast-pack --ui`) starts a local server on `127.0.0.1:7878` that watches the repository and re-indexes changed files:
+`ast-pack --ui` starts the local server on `127.0.0.1:7878` and opens the web app in your browser. Nothing leaves your machine; the page talks to the local server over a WebSocket.
+
+- **Command bar** (`Ctrl/⌘ K`): fuzzy symbol search as you type, `↑ ↓ ⇥ ↵` navigation, recent queries, "did you mean" suggestions when nothing matches. Pasting a stack trace packs it immediately, and every in-repo frame becomes an entry point.
+- **Live call graph**: a force-directed canvas. The entry point sits in the centre, callers pull to the left, callees to the right, and types and constants settle below. Nodes pop in with spring physics, staggered by hop. Call edges animate source → target. The crash site of a trace gets a red pulse. Hover a node to see its neighbourhood, click it to jump to its code, double-click it to re-root the slice there. Drag to pan, scroll to zoom, `F` to fit.
+- **Hop depth slider** (`[` / `]`, `0`–`6`): a sparkline above the track shows the bundle size at every depth. Neighbouring depths are prefetched, so moving the slider typically updates the graph and counter in under 50 ms. Measured on Hono: 16–27 ms.
+- **Savings counter**: rolling-digit "Saved 96.6%" with a progress ring and `753k → 25.3k tokens`.
+- **Code preview**: the bundle file by file, syntax-highlighted by Shiki in a Web Worker, with original line numbers. Pruned regions are expandable pills ("14 lines pruned · notFoundHandler, errorHandler · −109 tok") that load the hidden lines on demand. Trace frames get a clickable crash panel. Hovering code highlights the symbol in the graph, and hovering the graph highlights the code.
+- **Copy optimized prompt** (`C` or `Ctrl/⌘ ⇧ C`) in Markdown, XML or plain. You can attach an optional task prompt, and the options popover covers the token budget, type definitions, test files, exact edges and comment stripping.
+- Light and dark themes (`T`), `\` toggles the code pane, and `?` lists every shortcut.
+
+The page is a React + TypeScript app in `ui/` (Tailwind CSS, Framer Motion, Lucide icons, d3-force, Shiki). Its production build is committed to `src/ast_pack/web/`, so `pip install` ships it with no Node.js needed. To work on it:
+
+```bash
+ast-pack serve -C /path/to/repo        # API on :7878
+cd ui && npm install && npm run dev    # Vite on :5173, proxies /api and /ws to :7878
+npm run build                          # writes src/ast_pack/web/
+node e2e/smoke.mjs                     # end-to-end test against a real server in Chromium
+```
+
+## HTTP / WebSocket API
+
+`ast-pack serve` watches the repository and re-indexes changed files. Connected pages receive an `index_updated` push and re-pack automatically.
 
 | endpoint | purpose |
 |---|---|
-| `GET /api/health` | version, root, index generation |
+| `GET /api/health` | version, root, index generation, whether the UI bundle is present |
 | `GET /api/stats` | index statistics |
 | `GET /api/search?q=` | fuzzy symbol search |
 | `POST /api/pack` | body: pack options (`targets`, `depth`, `direction`, `max_tokens`, `format`, `depth_profile`, ...) |
 | `GET /api/file?path=` | full source of an indexed file (to expand pruned segments) |
 | `GET /api/graph?limit=` | repository overview graph |
-| `WS /ws` | `pack` / `search` / `file` messages (latest-wins while typing) and `index_updated` pushes |
-
-The interactive web UI (command bar, animated force-directed graph, hop-depth slider, token-savings counter, code preview with expandable pruned segments) is being built on top of this API in `ui/`. Until its bundle ships in the package, `/` serves an API index page.
-
----
+| `POST /api/refresh` | force re-scan |
+| `GET /api` | human-readable API index (with Schema.org JSON-LD) |
+| `WS /ws` | `pack` / `search` / `file` / `graph` messages; `pack` is latest-wins per `channel` (`main`, `prefetch`, `profile`) |
 
 ## Python library API
 
@@ -559,6 +580,7 @@ Every ast-pack command run with --json prints exactly one JSON document matching
 - `text` (string): rendered code, or the one-line pruned marker
 - `symbols` (array): pruned: names of the definitions hidden
 - `tokens` (integer): code: rendered tokens; pruned: tokens hidden
+- `lines` (array): original line number of each rendered line (null for inserted stubs, notes, collapsed blank lines and pruned markers)
 
 ### `file`
 

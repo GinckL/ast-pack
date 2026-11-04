@@ -45,7 +45,7 @@ from starlette.applications import Starlette
 from starlette.middleware import Middleware
 from starlette.middleware.cors import CORSMiddleware
 from starlette.requests import Request
-from starlette.responses import FileResponse, HTMLResponse, JSONResponse, Response
+from starlette.responses import HTMLResponse, JSONResponse, Response
 from starlette.routing import Mount, Route, WebSocketRoute
 from starlette.staticfiles import StaticFiles
 from starlette.websockets import WebSocket, WebSocketDisconnect
@@ -243,7 +243,8 @@ def create_app(index: RepoIndex, watch_interval: float = 1.0) -> Starlette:
                 if mtype == "pack":
                     opts = pack_options_from(msg.get("params") or {})
                     opts.validate()
-                    await send({"type": "pack_result", "id": mid, "result": await run(state.pack, opts)})
+                    await send({"type": "pack_result", "id": mid, "channel": msg.get("channel", "main"),
+                                "result": await run(state.pack, opts)})
                 elif mtype == "search":
                     limit = min(200, max(1, int(msg.get("limit", 12))))
                     kinds = set(msg.get("kinds") or []) or None
@@ -271,10 +272,13 @@ def create_app(index: RepoIndex, watch_interval: float = 1.0) -> Starlette:
             while True:
                 await wake.wait()
                 wake.clear()
-                for key in ("search", "pack"):
+                # Search first (typing), then the main pack, then prefetches.
+                for key in sorted(latest, key=lambda k: (not k.startswith("search"), k != "pack:main")):
                     msg = latest.pop(key, None)
                     if msg is not None:
                         await handle(msg)
+                    if wake.is_set() and key != "search:main":
+                        break  # newer input arrived: re-prioritise
 
         task = asyncio.create_task(worker())
         try:
@@ -290,7 +294,9 @@ def create_app(index: RepoIndex, watch_interval: float = 1.0) -> Starlette:
                 if not isinstance(msg, dict):
                     continue
                 if msg.get("type") in ("pack", "search"):
-                    latest[msg["type"]] = msg
+                    # Latest-wins per (type, channel): "main" for what the user
+                    # is looking at, "prefetch" for speculative neighbours.
+                    latest[f"{msg['type']}:{msg.get('channel', 'main')}"] = msg
                     wake.set()
                 else:
                     await handle(msg)
@@ -313,10 +319,7 @@ def create_app(index: RepoIndex, watch_interval: float = 1.0) -> Starlette:
             if changed:
                 await broadcast({"type": "index_updated", "stats": await run(state.stats)})
 
-    async def index_page(request: Request) -> Response:
-        dist = ui_dist_dir()
-        if dist is not None:
-            return FileResponse(dist / "index.html")
+    async def api_page(request: Request) -> Response:
         return HTMLResponse(_api_page(state.index))
 
     routes = [
@@ -328,11 +331,13 @@ def create_app(index: RepoIndex, watch_interval: float = 1.0) -> Starlette:
         Route("/api/graph", graph_route),
         Route("/api/refresh", refresh_route, methods=["POST"]),
         WebSocketRoute("/ws", ws_route),
-        Route("/", index_page),
+        Route("/api", api_page),
     ]
     dist = ui_dist_dir()
-    if dist is not None and (dist / "assets").is_dir():
-        routes.append(Mount("/assets", app=StaticFiles(directory=dist / "assets"), name="assets"))
+    if dist is not None:
+        routes.append(Mount("/", app=StaticFiles(directory=dist, html=True), name="ui"))
+    else:
+        routes.append(Route("/", api_page))
 
     from contextlib import asynccontextmanager
 

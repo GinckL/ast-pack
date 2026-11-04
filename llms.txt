@@ -24,6 +24,8 @@ Library: `from ast_pack import RepoIndex, PackOptions, pack; r = pack(RepoIndex.
 
 MCP: `claude mcp add ast-pack -- ast-pack mcp -C /path/to/repo` exposes tools `pack_context`, `search_symbols`, `repo_stats`.
 
+Web UI (`ast-pack --ui`): command bar with fuzzy search and stack-trace paste, animated force-directed call graph, hop-depth slider with per-depth token sparkline, token-savings counter, syntax-highlighted code preview with expandable pruned segments, one-click copy.
+
 HTTP/WebSocket API (`ast-pack serve`, 127.0.0.1:7878): `GET /api/health`, `GET /api/stats`, `GET /api/search?q=`, `POST /api/pack`, `GET /api/file?path=`, `GET /api/graph`, `POST /api/refresh`, `WS /ws`.
 
 Architecture: scanner (git ls-files / .gitignore) → per-language Tree-sitter extractors (symbols, references with receivers, imports, field and local types) → RepoIndex (cross-file name resolution → call/type/value edges + reverse index, mtime parse cache) → slicer (separate caller and callee BFS with fan-out cap, type/constant closure, token budget) → renderer (full / outline / header line plans, pruned markers, used imports only).

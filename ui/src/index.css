@@ -1,0 +1,159 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Colour tokens are RGB triplets so Tailwind can apply alpha (bg-panel/70). */
+:root {
+  --bg: 246 247 250;
+  --panel: 255 255 255;
+  --elev: 241 242 247;
+  --line: 222 225 234;
+  --fg: 20 22 30;
+  --mute: 92 99 118;
+  --faint: 150 156 172;
+  --accent: 84 98 240;
+  --seed: 84 98 240;
+  --callee: 13 148 136;
+  --caller: 217 119 6;
+  --type: 168 85 247;
+  --value: 219 39 119;
+  --danger: 225 29 72;
+  --ok: 22 163 74;
+  --grid: 20 22 30;
+  --code-bg: 250 250 252;
+  color-scheme: light;
+}
+
+.dark {
+  --bg: 9 10 14;
+  --panel: 17 19 26;
+  --elev: 24 27 36;
+  --line: 38 42 56;
+  --fg: 232 234 242;
+  --mute: 146 152 172;
+  --faint: 94 100 120;
+  --accent: 139 155 255;
+  --seed: 139 155 255;
+  --callee: 79 209 197;
+  --caller: 246 173 85;
+  --type: 196 145 255;
+  --value: 244 114 182;
+  --danger: 251 113 133;
+  --ok: 74 222 128;
+  --grid: 255 255 255;
+  --code-bg: 13 15 21;
+  color-scheme: dark;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  @apply bg-bg font-sans text-fg antialiased;
+  font-feature-settings: "cv11", "ss01", "ss03";
+  overflow: hidden;
+}
+
+::selection {
+  background: rgb(var(--accent) / 0.3);
+}
+
+.glass {
+  @apply border border-line/80 bg-panel/75 shadow-glass backdrop-blur-xl;
+}
+
+.kbd {
+  @apply inline-flex h-5 min-w-[20px] items-center justify-center rounded-[5px] border border-line bg-elev px-1 font-mono text-[10.5px] font-medium text-mute;
+  box-shadow: inset 0 -1px 0 rgb(var(--line));
+}
+
+.scroll-thin {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(var(--line)) transparent;
+}
+.scroll-thin::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.scroll-thin::-webkit-scrollbar-thumb {
+  background: rgb(var(--line));
+  border-radius: 8px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+/* Shiki emits both themes as CSS variables; pick by mode. */
+.shiki-line span {
+  color: var(--shiki-light);
+}
+.dark .shiki-line span {
+  color: var(--shiki-dark);
+}
+
+.code-font {
+  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12.5px;
+  line-height: 1.6;
+  font-variant-ligatures: none;
+}
+
+/* Range slider */
+input[type="range"].depth {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  width: 100%;
+  height: 22px;
+  cursor: pointer;
+}
+input[type="range"].depth::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 4px;
+  background: transparent;
+}
+input[type="range"].depth::-moz-range-track {
+  height: 4px;
+  border-radius: 4px;
+  background: transparent;
+}
+input[type="range"].depth::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  margin-top: -7px;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  background: rgb(var(--panel));
+  border: 2px solid rgb(var(--accent));
+  box-shadow: 0 0 0 4px rgb(var(--accent) / 0.18), 0 4px 12px rgb(0 0 0 / 0.35);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+input[type="range"].depth::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  background: rgb(var(--panel));
+  border: 2px solid rgb(var(--accent));
+  box-shadow: 0 0 0 4px rgb(var(--accent) / 0.18);
+}
+input[type="range"].depth:active::-webkit-slider-thumb {
+  transform: scale(1.15);
+  box-shadow: 0 0 0 7px rgb(var(--accent) / 0.22), 0 4px 12px rgb(0 0 0 / 0.35);
+}
+input[type="range"].depth:focus-visible {
+  outline: none;
+}
+input[type="range"].depth:focus-visible::-webkit-slider-thumb {
+  box-shadow: 0 0 0 6px rgb(var(--accent) / 0.35);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}

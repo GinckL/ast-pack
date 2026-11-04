@@ -83,7 +83,7 @@ def test_http_api(client):
     assert client.get("/api/file", params={"path": "../../etc/passwd"}).status_code == 404
     graph = client.get("/api/graph", params={"limit": 20}).json()
     assert len(graph["nodes"]) <= 20 and graph["edges"]
-    page = client.get("/").text
+    page = client.get("/api").text
     assert "application/ld+json" in page and "SoftwareApplication" in page
     assert client.post("/api/pack", json={"targets": ["x"], "depth": -1}).status_code == 400
 
@@ -142,3 +142,31 @@ def test_json_outputs_match_schema(capsys, fixture_root):
         main([*argv, "--no-cache"])
         doc = json.loads(capsys.readouterr().out)
         jsonschema.validate(doc, schema)
+
+
+def test_web_ui_is_served_when_built(client):
+    from ast_pack.server import ui_dist_dir
+
+    if ui_dist_dir() is None:
+        pytest.skip("web UI bundle not built (npm --prefix ui run build)")
+    page = client.get("/")
+    assert page.status_code == 200
+    assert '<div id="root">' in page.text
+    assert "application/ld+json" in page.text and "SoftwareSourceCode" in page.text
+    asset = next(p for p in page.text.split('"') if p.startswith("/assets/") and p.endswith(".js"))
+    assert client.get(asset).status_code == 200
+    assert client.get("/favicon.svg").status_code == 200
+    # API routes still win over the static mount.
+    assert client.get("/api/health").json()["ui"] is True
+
+
+def test_websocket_channels_are_independent(client):
+    with client.websocket_connect("/ws") as ws:
+        ws.receive_json()  # hello
+        ws.send_json({"type": "pack", "id": 1, "channel": "prefetch", "params": {"targets": ["tax_for"], "depth": 1}})
+        ws.send_json({"type": "pack", "id": 2, "channel": "main", "params": {"targets": ["transfer"], "depth": 1}})
+        got = {}
+        for _ in range(2):
+            msg = ws.receive_json()
+            got[msg["id"]] = msg["channel"]
+        assert got == {1: "prefetch", 2: "main"}

@@ -193,3 +193,16 @@ def test_to_dict_contract(index):
     assert seg_kinds == {"code", "pruned"}
     node_ids = {n["id"] for n in d["nodes"]}
     assert all(e["source"] in node_ids and e["target"] in node_ids for e in d["edges"])
+
+
+def test_segment_line_maps_align_with_text(index):
+    for target in ["process_payment", "CheckoutButton", "Ledger.Append", "Invoice.total"]:
+        r = pack(index, PackOptions(targets=[target], depth=2))
+        for f in r.files:
+            for seg in f.segments:
+                assert len(seg.lines) == len(seg.text.split("\n")), (f.path, seg.start)
+                if seg.kind == "code":
+                    src = index.file_lines(f.path)
+                    for text_line, n in zip(seg.text.split("\n"), seg.lines):
+                        if n is not None:
+                            assert text_line == src[n - 1]

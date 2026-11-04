@@ -35,6 +35,9 @@ class Segment:
     text: str
     symbols: list[str] = field(default_factory=list)
     tokens: int = 0
+    # Original line number of every rendered line (None for inserted lines:
+    # stubs, trace notes, collapsed blank lines, pruned markers).
+    lines: list[int | None] = field(default_factory=list)
 
     def to_dict(self) -> dict:
         return {
@@ -44,6 +47,7 @@ class Segment:
             "text": self.text,
             "symbols": self.symbols,
             "tokens": self.tokens,
+            "lines": self.lines,
         }
 
 
@@ -257,17 +261,21 @@ class _FilePlan:
                 while j + 1 <= n_lines and (j + 1) in self.keep:
                     j += 1
                 out: list[str] = []
+                nums: list[int | None] = []
                 for n in range(i, j + 1):
                     for note in self.notes_before.get(n, []):
                         out.append(self._num(None, width, opts) + note)
+                        nums.append(None)
                     if n in comment_lines and n not in self.notes_before:
                         pass
                     else:
                         out.append(self._num(n, width, opts) + self.line(n))
+                        nums.append(n)
                     for stub in self.stubs_after.get(n, []):
                         out.append(self._num(None, width, opts) + stub)
+                        nums.append(None)
                 text = "\n".join(out)
-                segments.append(Segment("code", i, j, text, tokens=counter.count(text)))
+                segments.append(Segment("code", i, j, text, tokens=counter.count(text), lines=nums))
                 i = j + 1
             else:
                 j = i
@@ -277,14 +285,16 @@ class _FilePlan:
                 chunk = self.lines[i - 1 : j]
                 if visible and not (set(range(i, j + 1)) & self.silent) and self._cheap(i, j, counter):
                     # The marker would cost as much as the code: keep the code.
-                    text = "\n".join(self._num(n, width, opts) + self.line(n) for n in range(i, j + 1) if n not in comment_lines)
+                    kept_nums = [n for n in range(i, j + 1) if n not in comment_lines]
+                    text = "\n".join(self._num(n, width, opts) + self.line(n) for n in kept_nums)
                     if segments and segments[-1].kind == "code" and segments[-1].end == i - 1:
                         prev = segments[-1]
                         prev.text += "\n" + text
+                        prev.lines.extend(kept_nums)
                         prev.end = j
                         prev.tokens = counter.count(prev.text)
                     else:
-                        segments.append(Segment("code", i, j, text, tokens=counter.count(text)))
+                        segments.append(Segment("code", i, j, text, tokens=counter.count(text), lines=list(kept_nums)))
                     i = j + 1
                     continue
                 if visible:
@@ -298,17 +308,19 @@ class _FilePlan:
                     label = f"{count} lines pruned (L{i0}-L{j0})" if count > 1 else f"1 line pruned (L{i0})"
                     marker = f"{indent}{self.comment} ⋯ {label}" + (f": {shown}" if shown else "")
                     hidden_tokens = counter.count("\n".join(chunk))
-                    segments.append(Segment("pruned", i0, j0, self._num(None, width, opts) + marker, names, hidden_tokens))
+                    segments.append(Segment("pruned", i0, j0, self._num(None, width, opts) + marker, names, hidden_tokens, [None]))
                 elif segments and segments[-1].kind == "code" and j < n_lines and any(
                     n not in self.silent and not self.line(n).strip() for n in range(i, j + 1)
                 ):
                     segments[-1].text += "\n"
+                    segments[-1].lines.append(None)
                 i = j + 1
         merged: list[Segment] = []
         for seg in segments:
             prev = merged[-1] if merged else None
             if prev is not None and prev.kind == "code" and seg.kind == "code" and seg.start == prev.end + 1:
                 prev.text = prev.text + "\n" + seg.text
+                prev.lines.extend(seg.lines)
                 prev.end = seg.end
                 prev.tokens = counter.count(prev.text)
             else:

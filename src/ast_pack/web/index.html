@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="dark light" />
+    <title>ast-pack</title>
+    <meta
+      name="description"
+      content="ast-pack: give a function, file:line or stack trace and get only the code an LLM needs, from a Tree-sitter call graph of callers, callees, types and constants."
+    />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <script>
+      // Apply the saved / system theme before first paint (no flash).
+      (function () {
+        var t = null;
+        try { t = localStorage.getItem("ast-pack-theme"); } catch (e) {}
+        var dark = t ? t === "dark" : !window.matchMedia || window.matchMedia("(prefers-color-scheme: dark)").matches;
+        document.documentElement.classList.toggle("dark", dark);
+      })();
+    </script>
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "SoftwareApplication",
+            "name": "ast-pack",
+            "applicationCategory": "DeveloperApplication",
+            "applicationSubCategory": "LLM context packing / code slicing",
+            "operatingSystem": "Linux, macOS, Windows",
+            "softwareVersion": "0.1.0",
+            "license": "https://opensource.org/licenses/MIT",
+            "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+            "downloadUrl": "https://pypi.org/project/ast-pack/",
+            "installUrl": "https://github.com/ginckl/ast-pack#installation",
+            "softwareRequirements": "Python 3.10+",
+            "featureList": [
+              "Pack a function, file:line or stack trace into a minimal LLM prompt",
+              "Tree-sitter call graph for Python, TypeScript, JavaScript, Go and Rust",
+              "Callers and callees up to N hops plus referenced types and constants",
+              "Syntactically valid output with exact file and line headers",
+              "Token budget, --json output, MCP server, local web UI"
+            ],
+            "description": "ast-pack builds the smallest correct LLM prompt for one bug, function or stack trace by slicing a Tree-sitter call graph of the repository."
+          },
+          {
+            "@type": "SoftwareSourceCode",
+            "name": "ast-pack",
+            "codeRepository": "https://github.com/ginckl/ast-pack",
+            "programmingLanguage": ["Python", "TypeScript"],
+            "runtimePlatform": "Python 3.10+",
+            "license": "https://opensource.org/licenses/MIT",
+            "keywords": "LLM context, token reduction, tree-sitter, call graph, code slicing, stack trace, Repomix alternative, MCP",
+            "about": "Command-line usage: `ast-pack processPayment`, `ast-pack src/app.py:42`, `pytest 2>&1 | ast-pack`, `ast-pack --ui`, `ast-pack mcp`"
+          }
+        ]
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-DIZUfi3Y.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/motion-CVOamqbz.js">
+    <link rel="modulepreload" crossorigin href="/assets/react-CIhcXKeN.js">
+    <link rel="modulepreload" crossorigin href="/assets/graph-DKAawWwn.js">
+    <link rel="stylesheet" crossorigin href="/assets/index-DPrW8BTL.css">
+  </head>
+  <body>
+    <div id="root"></div>
+    <noscript>ast-pack's web UI needs JavaScript. The same features are available from the CLI: ast-pack --help</noscript>
+  </body>
+</html>

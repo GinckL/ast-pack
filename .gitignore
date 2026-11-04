@@ -13,6 +13,4 @@ venv/
 htmlcov/
 .bench/
 node_modules/
-ui/dist/
-src/ast_pack/web/
 .DS_Store

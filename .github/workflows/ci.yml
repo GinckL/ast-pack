@@ -24,3 +24,27 @@ jobs:
         run: |
           ast-pack --version
           ast-pack -C tests/fixtures/polyglot process_payment -d 1 --json --no-bundle
+
+  ui:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: npm ci
+        working-directory: ui
+      - run: npm run build
+        working-directory: ui
+      - run: python -m pip install -e .
+      - name: End-to-end test (real server + Chromium)
+        working-directory: ui
+        run: |
+          npm install --no-save playwright@1.49.1
+          npx playwright install --with-deps chromium
+          node e2e/smoke.mjs

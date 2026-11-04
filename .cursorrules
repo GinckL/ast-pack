@@ -19,4 +19,5 @@
 - Every rendered file must stay syntactically valid; `tests/test_pack.py::test_every_rendered_file_is_syntactically_valid` and `benchmarks/validity.py` enforce it.
 - Bump `EXTRACTOR_VERSION` in `extractors/__init__.py` whenever extraction output changes (invalidates the parse cache).
 - Keep `--json` output backwards compatible with `schema.json`; extend the schema in the same change.
+- Web UI: `ui/` (React, TypeScript, Tailwind, Framer Motion, d3-force canvas graph, Shiki in a Web Worker). `npm run build` writes `src/ast_pack/web/` (committed); `node ui/e2e/smoke.mjs` must pass. The UI only talks to `/api/*` and `/ws`; keep the WebSocket message types in `server.py` and `ui/src/lib/socket.ts` in sync.
 - Keep `tree-sitter` pinned below 0.26 (0.26.0's Python binding segfaults on real files).
