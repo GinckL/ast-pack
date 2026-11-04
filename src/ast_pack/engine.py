@@ -107,10 +107,15 @@ class PackResult:
 
     def summary_line(self) -> str:
         n_sym = sum(1 for n in self.graph.nodes.values() if n.role != "container")
+
+        def saving(total: int, pct: float) -> str:
+            # On tiny inputs headers + slice map can outweigh the pruning.
+            return f"saved {pct:.1f}%" if pct >= 0 else "smaller than the bundle overhead"
+
         return (
             f"{n_sym} symbols · {len(self.files)} files · {self.bundle_tokens:,} tokens "
-            f"(repo {self.repo_tokens:,} → saved {self.saved_pct:.1f}%; "
-            f"whole files {self.touched_file_tokens:,} → saved {self.saved_vs_files_pct:.1f}%)"
+            f"(repo {self.repo_tokens:,} → {saving(self.repo_tokens, self.saved_pct)}; "
+            f"whole files {self.touched_file_tokens:,} → {saving(self.touched_file_tokens, self.saved_vs_files_pct)})"
         )
 
     def nodes_json(self) -> list[dict]:

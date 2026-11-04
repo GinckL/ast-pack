@@ -6,6 +6,9 @@ import pytest
 
 from ast_pack.cli import main, normalize_argv
 
+# TestClient sends "Host: testserver" on WebSockets; the server only accepts local hosts.
+LOCAL = {"host": "127.0.0.1:7878"}
+
 
 def run_cli(capsys, *argv):
     code = main(list(argv))
@@ -67,7 +70,7 @@ def client(index):
 
     from ast_pack.server import create_app
 
-    with TestClient(create_app(index, watch_interval=0)) as c:
+    with TestClient(create_app(index, watch_interval=0), base_url="http://127.0.0.1:7878") as c:
         yield c
 
 
@@ -89,7 +92,7 @@ def test_http_api(client):
 
 
 def test_websocket_pack_and_search(client):
-    with client.websocket_connect("/ws") as ws:
+    with client.websocket_connect("/ws", headers=LOCAL) as ws:
         hello = ws.receive_json()
         assert hello["type"] == "hello" and hello["stats"]["symbols"] > 0
         ws.send_json({"type": "search", "id": 1, "q": "charge"})
@@ -161,7 +164,7 @@ def test_web_ui_is_served_when_built(client):
 
 
 def test_websocket_channels_are_independent(client):
-    with client.websocket_connect("/ws") as ws:
+    with client.websocket_connect("/ws", headers=LOCAL) as ws:
         ws.receive_json()  # hello
         ws.send_json({"type": "pack", "id": 1, "channel": "prefetch", "params": {"targets": ["tax_for"], "depth": 1}})
         ws.send_json({"type": "pack", "id": 2, "channel": "main", "params": {"targets": ["transfer"], "depth": 1}})
@@ -170,3 +173,21 @@ def test_websocket_channels_are_independent(client):
             msg = ws.receive_json()
             got[msg["id"]] = msg["channel"]
         assert got == {1: "prefetch", 2: "main"}
+
+
+def test_local_only_protection(client):
+    from starlette.websockets import WebSocketDisconnect
+
+    # DNS rebinding: the attacker's hostname reaches the server's IP.
+    assert client.get("/api/file", params={"path": "web/src/lib/money.ts"}, headers={"host": "evil.example:7878"}).status_code == 403
+    # Cross-site fetch from another origin.
+    assert client.get("/api/stats", headers={"origin": "https://evil.example"}).status_code == 403
+    # A different local port is a different origin too.
+    assert client.get("/api/stats", headers={"origin": "http://127.0.0.1:9999"}).status_code == 403
+    # Same origin, the Vite dev server and origin-less clients (curl, agents) are fine.
+    assert client.get("/api/stats", headers={"origin": "http://127.0.0.1:7878"}).status_code == 200
+    assert client.get("/api/stats", headers={"origin": "http://localhost:5173"}).status_code == 200
+    assert client.get("/api/stats").status_code == 200
+    with pytest.raises(WebSocketDisconnect):
+        with client.websocket_connect("/ws", headers={**LOCAL, "origin": "https://evil.example"}) as ws:
+            ws.receive_json()

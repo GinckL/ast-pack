@@ -32,6 +32,7 @@ export function EmptyHero() {
             <Hint icon={FileCode2} text="src/app.py:42" />
             <Hint icon={Bug} text="Traceback (most recent call last)…" />
           </div>
+          <div className="mt-4 text-[11.5px] text-faint">drag to pan · scroll to zoom · click a node to pack it · press ? for shortcuts</div>
           {examples.length > 0 && (
             <div className="pointer-events-auto mt-6 flex flex-wrap items-center justify-center gap-2">
               <span className="text-[11px] uppercase tracking-[0.12em] text-faint">Try</span>

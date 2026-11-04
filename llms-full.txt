@@ -4,67 +4,175 @@
 
 ---
 
-# ast-pack
+<div align="center">
+
+<img src="docs/assets/hero.svg" alt="ast-pack — send the model only the code that matters" width="100%"/>
+
+<p>
+  <a href="https://github.com/ginckl/ast-pack/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/ginckl/ast-pack/actions/workflows/ci.yml/badge.svg"/></a>
+  <img alt="Python 3.10–3.13" src="https://img.shields.io/badge/python-3.10%20%E2%80%93%203.13-3776AB?logo=python&logoColor=white"/>
+  <img alt="Languages" src="https://img.shields.io/badge/parses-Python%20%C2%B7%20TS%20%C2%B7%20JS%20%C2%B7%20Go%20%C2%B7%20Rust-6E7BFF"/>
+  <img alt="Tokens saved" src="https://img.shields.io/badge/tokens%20saved-87%E2%80%9398.7%25-2EA44F"/>
+  <img alt="MCP server" src="https://img.shields.io/badge/MCP-server-8A63D2"/>
+  <a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/badge/license-MIT-informational"/></a>
+</p>
+
+<h3>Give it a function, a <code>file:line</code> or a stack trace.<br/>Get back the exact call-graph slice an LLM needs — and nothing else.</h3>
+
+<p>
+  <a href="#-quickstart"><b>Quickstart</b></a> ·
+  <a href="#-see-it-work"><b>Demo</b></a> ·
+  <a href="#-benchmarks"><b>Benchmarks</b></a> ·
+  <a href="#-the-web-ui"><b>Web UI</b></a> ·
+  <a href="AGENT_GUIDE.md"><b>For AI agents</b></a> ·
+  <a href="#-author"><b>Author</b></a>
+</p>
+
+</div>
 
 > **TL;DR — ast-pack builds the smallest correct LLM prompt for one bug, function or stack trace.**
-> Instead of dumping a whole repository (Repomix, gitingest) or whole files into ChatGPT, Claude or Cursor, `ast-pack` parses your repo with **Tree-sitter** into a cross-file call graph, starts at a symbol, `file:line` or raw stack trace, walks callers and callees N hops, pulls in every type definition and constant they use, and prunes everything else into a **syntactically valid** bundle with exact file/line headers.
+> Instead of dumping a whole repository (Repomix, gitingest) or whole files into ChatGPT, Claude or Cursor, `ast-pack` parses your repo with **Tree-sitter** into a cross-file call graph. It starts at a symbol, a `file:line` or a raw stack trace, walks callers and callees N hops, pulls in every type definition and constant they use, and prunes everything else. The result is a **syntactically valid** bundle with exact file/line headers.
 > **Install:** `pip install ast-pack` · **Run:** `ast-pack processPayment` · **Measured:** 87–98.7% fewer tokens than the whole repo on Flask, httpx, Gin, chi, Hono, Zod and ripgrep ([benchmarks](benchmarks/RESULTS.md)).
 
-Python · TypeScript · JavaScript/JSX · Go · Rust — CLI, `--json` for agents, MCP server, local web UI with a live call graph.
+## 🎬 See it work
+
+<div align="center">
+  <img src="docs/assets/demo.webp" alt="ast-pack web UI: search Hono.fetch, the call graph blooms, depth slider, pruned code pills, copy prompt" width="100%"/>
+  <sub>Real recording on <a href="https://github.com/honojs/hono">honojs/hono</a> (753k tokens): search → graph blooms → hover → hop depth → expand pruned code → copy. Nothing is mocked.</sub>
+</div>
+
+## ⚡ Quickstart
 
 ```bash
-pip install ast-pack            # or, before the PyPI release: pipx install git+https://github.com/ginckl/ast-pack
-ast-pack processPayment         # symbol → context bundle on stdout
-ast-pack src/pay/service.py:42  # the function enclosing a line
-pytest 2>&1 | ast-pack          # a stack trace from stdin
-ast-pack Client.send -d 1 --copy  # copy to clipboard
-ast-pack --ui                   # local web app + API
+pip install ast-pack            # before the PyPI release: pipx install git+https://github.com/ginckl/ast-pack
 ```
 
----
+```bash
+ast-pack processPayment         # a symbol → context bundle on stdout
+```
 
-## Contents
+```bash
+pytest 2>&1 | ast-pack          # a stack trace → every in-repo frame, crash line annotated
+```
 
-- [What ast-pack does](#what-ast-pack-does)
-- [Problems solved & common developer questions](#problems-solved--common-developer-questions)
-- [Comparison matrix](#comparison-matrix)
-- [Benchmarks](#benchmarks)
-- [Installation](#installation)
-- [Usage](#usage)
-- [CLI reference](#cli-reference)
-- [JSON output for agents and scripts](#json-output-for-agents-and-scripts)
-- [MCP server (Claude Code, Cursor, Windsurf)](#mcp-server-claude-code-cursor-windsurf)
-- [Web UI](#web-ui-ast-pack---ui)
-- [HTTP / WebSocket API](#http--websocket-api)
-- [Python library API](#python-library-api)
-- [How it works](#how-it-works)
-- [Limitations](#limitations)
-- [Contributing, citation, license](#contributing-citation-license)
+```bash
+ast-pack --ui                   # the live web app (local only)
+```
 
----
+Then paste the output into ChatGPT, Claude or Cursor, or add `--copy` to put it on the clipboard. Python 3.10+, no compiler, no Node.js, no language server.
 
-## What ast-pack does
+## ✨ Why ast-pack
 
-ast-pack is a command-line tool and Python library that turns a code question into a minimal context bundle for a large language model. Given an **entry point** — a function or method name (`processPayment`, `Gateway.charge`, `Ledger.Append`), a `file:line`, a file path, or a pasted **stack trace** from Python, Node.js, Go or Rust — it:
+<table>
+<tr>
+<td width="33%" valign="top">
 
-1. indexes the repository with Tree-sitter (functions, methods, classes, structs, interfaces, traits, enums, type aliases, constants, imports);
-2. resolves every reference across files — imports, re-export barrels, `tsconfig` path aliases, Go modules, Rust `use` paths, `self`/`this` calls, typed parameters and struct/class field types;
-3. walks the call graph outward from the entry point: **callees** (what it executes) and **callers** (who reaches it), up to `--depth` hops;
-4. adds the **type definitions, interfaces and global constants** the included code uses (classes are shown as outlines with only the members the slice touches);
-5. renders each file with unrelated functions collapsed into one-line markers such as `# ⋯ 34 lines pruned (L41-L74): refund, Ledger.close`, keeps the imports that are actually used, and prints exact line ranges per file.
+### 🎯 Surgical, not bulk
+Starts at **one** function and follows the real call graph — callers *and* callees, across files — instead of shipping your whole repo.
 
-Example output (abridged) for `ast-pack Mux.ServeHTTP -d 1` on [go-chi/chi](https://github.com/go-chi/chi) — 2,283 tokens instead of 107,467:
+</td>
+<td width="33%" valign="top">
+
+### 🧬 Nothing it needs is missing
+Pulls in the **types, interfaces, structs and constants** the slice uses. Classes are shown as outlines with only the members it touches.
+
+</td>
+<td width="33%" valign="top">
+
+### ✅ Still valid code
+Pruned regions become one-line markers, stubs keep braces balanced. **6,605 rendered files re-parsed with 0 syntax errors.**
+
+</td>
+</tr>
+<tr>
+<td valign="top">
+
+### 💥 Stack traces in
+Paste a Python, Node.js, Go or Rust trace. Frames map to repo files even from CI paths; the crash line is annotated.
+
+</td>
+<td valign="top">
+
+### 🤖 Built for agents
+`--json` on every command with a [JSON Schema](schema.json), deterministic exit codes, and an **MCP server** for Claude Code, Cursor and Windsurf.
+
+</td>
+<td valign="top">
+
+### 🪄 A UI you'll keep open
+Live force-directed graph, hop-depth slider with prefetching (**< 50 ms** per step), rolling token counter, one-click copy.
+
+</td>
+</tr>
+</table>
+
+## 📉 Benchmarks
+
+<div align="center">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/savings-dark.svg"/>
+  <img src="docs/assets/savings-light.svg" alt="Tokens sent for one function: flask 10.8k of 135k (−92.0%), httpx 7.6k of 134k (−94.3%), gin 4.8k of 197k (−97.6%), chi 2.3k of 107k (−97.9%), hono 22.1k of 753k (−97.1%), zod 13.1k of 1.0M (−98.7%), ripgrep 18.3k of 461k (−96.0%)" width="100%"/>
+</picture>
+</div>
+
+| repository | language | entry point | depth | bundle tokens | repo tokens | saved vs repo | saved vs touched files |
+|---|---|---|---|---|---|---|---|
+| pallets/flask | Python | `Flask.full_dispatch_request` | 1 | 10,834 | 134,903 | **92.0%** | 70.9% |
+| encode/httpx | Python | `Client.send` | 1 | 7,567 | 133,516 | **94.3%** | 80.2% |
+| gin-gonic/gin | Go | `Context.JSON` | 2 | 5,592 | 196,695 | **97.2%** | 83.6% |
+| go-chi/chi | Go | `Mux.ServeHTTP` | 1 | 2,283 | 107,467 | **97.9%** | 82.8% |
+| honojs/hono | TypeScript | `Hono.fetch` | 1 | 22,127 | 752,557 | **97.1%** | 69.1% |
+| colinhacks/zod | TypeScript | `ZodString._parse` | 2 | 15,484 | 1,003,297 | **98.5%** | 68.0% |
+| BurntSushi/ripgrep | Rust | `search_path` | 2 | 21,606 | 460,732 | **95.3%** | 88.1% |
+
+Exact `cl100k_base` counts at pinned commits, default options. Indexing a 1M-token repo (zod, 522 files) takes ~1.1 s cold with ~77 MB peak memory; a pack takes 10–150 ms. Method, validity results and the reproduction script: [benchmarks/RESULTS.md](benchmarks/RESULTS.md).
+
+## 🖥 The web UI
+
+<table>
+<tr>
+<td colspan="2"><img src="docs/assets/ui-graph.webp" alt="ast-pack UI: Hono.fetch call graph with callers left, callees right, types below; 96.6% tokens saved; code pane with pruned pills"/></td>
+</tr>
+<tr>
+<td width="50%"><img src="docs/assets/ui-trace.webp" alt="Pasted Python stack trace: crash site highlighted in the graph and annotated in the code"/><br/><sub><b>Stack-trace mode</b> — every in-repo frame is an entry point; the crash site pulses red.</sub></td>
+<td width="50%"><img src="docs/assets/ui-light.webp" alt="Light theme on Flask with an expanded pruned segment"/><br/><sub><b>Light theme</b> — pruned pills expand to the hidden lines on demand.</sub></td>
+</tr>
+</table>
+
+`ast-pack --ui` opens a local app (bound to `127.0.0.1`, protected against DNS rebinding and cross-site access — your code never leaves your machine).
+
+- **⌘K command bar** — fuzzy symbol search as you type, recents, "did you mean"; paste a stack trace and it packs instantly.
+- **Live call graph** — callers pull left, callees right, types and constants settle below; nodes spring in by hop, call edges flow. Hover to isolate a neighbourhood, click to jump to code, double-click to re-root.
+- **Hop depth `[` `]`** — a sparkline shows bundle size per depth; neighbouring depths are prefetched so each step lands in < 50 ms.
+- **Code preview** — Shiki highlighting in a Web Worker, original line numbers, expandable pruned pills, a crash panel for traces, two-way hover linking with the graph.
+- **Copy optimized prompt** (`C`) in Markdown, XML or plain, with an optional task for the model. `?` shows every shortcut.
+
+## 🧠 How it works
+
+```mermaid
+flowchart LR
+    A["🎯 Entry point<br/>symbol · file:line · stack trace"] --> B
+    subgraph Index["RepoIndex · cached by mtime"]
+      B["Tree-sitter extractors<br/>Python · TS/JS · Go · Rust"] --> C["Cross-file resolver<br/>imports · barrels · tsconfig · go.mod · crates<br/>self/this · typed params · field types"]
+    end
+    C --> D["Slicer<br/>callers ← seed → callees, N hops<br/>+ types and constants"]
+    D --> E["Renderer<br/>full · outline · header<br/>pruned markers · used imports"]
+    E --> F["📦 Bundle<br/>Markdown · XML · plain · --json"]
+    D -.-> G["⚡ Web UI · MCP · HTTP/WS API"]
+```
+
+- **Extraction** — one Tree-sitter walker per language records symbols with exact ranges (doc comments, decorators and attributes included), where bodies start, imports, and every referenced name with its receiver (`self.repo.save` → `save` on `self.repo`). Locals are filtered; typed parameters and struct/class fields record their types.
+- **Resolution** — bare names resolve through the file, its imports (following re-export chains) and language scope (Go packages, Rust crates). Member calls resolve through `self`/`this`/receivers, field types, typed locals, module aliases and base classes/traits. Calls on values of unknown type match by name only when ≤ 3 methods share it and the name isn't ubiquitous (`get`, `close`, …), with confidence < 1.
+- **Slicing** — two breadth-first walks (callees, callers) that never mix, a fan-out cap preferring nearby code, then a closure over type and value edges; `--max-tokens` drops the farthest and least certain symbols first.
+- **Rendering** — a per-file line plan; markers that would cost more tokens than the code they hide are replaced by the code.
+
+Example output for `ast-pack Mux.ServeHTTP -d 1` on [go-chi/chi](https://github.com/go-chi/chi) — 2,283 tokens instead of 107,467:
 
 ````markdown
 ### mux.go · lines 1, 3-48, 60-92, 410-417
 
 ```go
 package chi
-
-import (
-	"context"
-	...
-)
 ...
 func (mx *Mux) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	...
@@ -76,9 +184,7 @@ func (mx *Mux) NotFoundHandler() http.HandlerFunc {
 ```
 ````
 
----
-
-## Problems solved & common developer questions
+## ❓ Problems solved & common developer questions
 
 ### How do I reduce token usage when packing code for LLMs?
 
@@ -120,9 +226,7 @@ Register the MCP server (`claude mcp add ast-pack -- ast-pack mcp`) or let the a
 
 Yes. Pruned regions become comments, and outlined bodies become `...` (Python) or a comment between the original braces. In our validity run, 6,605 rendered files from 1,400 random slices across seven repositories all re-parsed without errors ([details](benchmarks/RESULTS.md#syntactic-validity)).
 
----
-
-## Comparison matrix
+## ⚖️ Comparison matrix
 
 | | **ast-pack** | Repomix | code2prompt | files-to-prompt | gitingest | Aider repo map | manual copy-paste |
 |---|---|---|---|---|---|---|---|
@@ -144,45 +248,10 @@ Yes. Pruned regions become comments, and outlined bodies become `...` (Python) o
 
 The other tools are excellent for "give the model my whole small repo" or a repository overview; ast-pack is for "give the model exactly what it needs to reason about *this* code path". Feature rows reflect each project's documented behaviour at the time of writing; corrections are welcome via pull request.
 
----
+## 📖 Usage
 
-## Benchmarks
-
-Default options (`-d 1` / `-d 2`, callers + callees, tests excluded), exact `cl100k_base` tokens, pinned commits. Full table, method and reproduction script: [benchmarks/RESULTS.md](benchmarks/RESULTS.md).
-
-| repository | language | entry point | depth | bundle tokens | repo tokens | saved vs repo | saved vs touched files |
-|---|---|---|---|---|---|---|---|
-| pallets/flask | Python | `Flask.full_dispatch_request` | 1 | 10,834 | 134,903 | **92.0%** | 70.9% |
-| encode/httpx | Python | `Client.send` | 1 | 7,567 | 133,516 | **94.3%** | 80.2% |
-| gin-gonic/gin | Go | `Context.JSON` | 2 | 5,592 | 196,695 | **97.2%** | 83.6% |
-| go-chi/chi | Go | `Mux.ServeHTTP` | 1 | 2,283 | 107,467 | **97.9%** | 82.8% |
-| honojs/hono | TypeScript | `Hono.fetch` | 1 | 22,127 | 752,557 | **97.1%** | 69.1% |
-| colinhacks/zod | TypeScript | `ZodString._parse` | 2 | 15,484 | 1,003,297 | **98.5%** | 68.0% |
-| BurntSushi/ripgrep | Rust | `search_path` | 2 | 21,606 | 460,732 | **95.3%** | 88.1% |
-
-Indexing a 1M-token TypeScript repo (zod, 522 files) takes about 1.1 s cold with ~77 MB peak memory; a pack takes 10–150 ms. Re-runs use an mtime-keyed parse cache.
-
----
-
-## Installation
-
-```bash
-pip install ast-pack
-```
-
-Before the first PyPI release, install from GitHub:
-
-```bash
-pipx install git+https://github.com/ginckl/ast-pack
-```
-
-Requirements: Python 3.10+. Tree-sitter grammars for Python, TypeScript/TSX, JavaScript, Go and Rust are installed as wheels — no compiler, no Node.js, no language servers. `tiktoken` provides exact token counts; it downloads its vocabulary once and ast-pack falls back to an estimator when offline.
-
----
-
-## Usage
-
-### Pack a function, method or type
+<details open>
+<summary><b>Targets: symbols, lines, files, stack traces</b></summary>
 
 ```bash
 ast-pack processPayment                       # bare name
@@ -190,26 +259,18 @@ ast-pack Gateway.charge                       # Class.method / Type.method
 ast-pack ledger.Append                        # Go package.Func or Type.Method
 ast-pack src/payments/service.py::process     # disambiguate by file
 ast-pack processPayment refundPayment         # several seeds in one bundle
-```
-
-### Pack from a line or a file
-
-```bash
 ast-pack src/billing/invoice.rs:33            # innermost symbol enclosing line 33
 ast-pack web/src/lib/api.ts                   # every top-level symbol of the file
+pytest -x 2>&1 | ast-pack -d 1                # stack trace from stdin
+ast-pack trace crash.log                      # stack trace from a file
 ```
 
-### Pack from a stack trace
+Trace formats: Python tracebacks, Node.js/V8 (`at fn (file:line:col)`, including `file://` and `webpack-internal://`), Go panics/goroutine dumps, Rust `panicked at` and `RUST_BACKTRACE` frames. Absolute paths from CI or another machine are matched to repository files by longest path suffix.
 
-```bash
-pytest -x 2>&1 | ast-pack -d 1
-ast-pack trace crash.log
-pbpaste | ast-pack --copy
-```
+</details>
 
-Supported formats: Python tracebacks, Node.js/V8 (`at fn (file:line:col)`, including `file://` and `webpack-internal://` paths), Go panics/goroutine dumps, Rust `panicked at` messages and `RUST_BACKTRACE` frames. Absolute paths from CI or another machine are matched to repository files by longest path suffix.
-
-### Control the slice
+<details>
+<summary><b>Control the slice and shape the output</b></summary>
 
 ```bash
 ast-pack handler -d 3                         # more hops
@@ -219,11 +280,6 @@ ast-pack handler --max-tokens 6000            # fit a budget
 ast-pack handler --min-confidence 1.0         # only exactly-resolved calls
 ast-pack handler --include-tests              # also follow test files
 ast-pack handler --type-depth 0 --no-types    # behaviour only, no type definitions
-```
-
-### Shape the output
-
-```bash
 ast-pack handler -f xml                       # <file path=... lines=...> blocks (good for Claude)
 ast-pack handler -f plain                     # ==> path <== headers
 ast-pack handler --line-numbers               # prefix kept lines with original numbers
@@ -232,9 +288,10 @@ ast-pack handler -p "Why does this double-charge?"   # put the task before the c
 ast-pack handler -o context.md --copy         # write a file and copy to clipboard
 ```
 
----
+</details>
 
-## CLI reference
+<details>
+<summary><b>CLI reference</b></summary>
 
 ```text
 ast-pack [pack] TARGET... [options]     build a bundle (default command)
@@ -268,11 +325,11 @@ ast-pack mcp                            Model Context Protocol server on stdio
 | `--tokenizer NAME` | `cl100k_base` | `cl100k_base`, `o200k_base`, `approx` |
 | `--no-cache` | off | skip the on-disk parse cache |
 
-Exit codes: `0` success, `1` error, `2` nothing matched (JSON error includes `suggestions`).
+Exit codes: `0` success, `1` error, `2` nothing matched (the JSON error includes `suggestions`).
 
----
+</details>
 
-## JSON output for agents and scripts
+## 🤖 For AI agents: JSON and MCP
 
 Every command accepts `--json` and prints exactly one JSON document described by [schema.json](schema.json):
 
@@ -288,52 +345,24 @@ cd chi && ast-pack Mux.ServeHTTP -d 1 --json | jq '.stats'
 }
 ```
 
-On very small repositories the slice map and headers can cost more than they save versus whole files; `--no-map` removes the map.
+A pack result contains `seeds`, `nodes` (symbol, kind, path, line range, hop, role `seed|callee|caller|type|value|container`, mode `full|outline|header`, confidence), `edges` (`call|type|value`), `files` (line ranges and `code`/`pruned` segments with original line numbers), `bundle`, `dropped`, `warnings`, `suggestions` and `trace`.
 
-A pack result contains `seeds`, `nodes` (symbol, kind, path, line range, hop, role `seed|callee|caller|type|value|container`, mode `full|outline|header`, confidence), `edges` (`call|type|value`), `files` (line ranges and `code`/`pruned` segments), `bundle`, `dropped`, `warnings`, `suggestions`, and `trace` (language, error message, crash site, frames).
-
----
-
-## MCP server (Claude Code, Cursor, Windsurf)
+**MCP** (Claude Code, Cursor, Windsurf):
 
 ```bash
 claude mcp add ast-pack -- ast-pack mcp -C /path/to/repo
 ```
 
-Generic MCP client configuration:
-
 ```json
 { "mcpServers": { "ast-pack": { "command": "ast-pack", "args": ["mcp", "-C", "/path/to/repo"] } } }
 ```
 
-Tools: `pack_context(target, depth?, direction?, max_tokens?, format?, repo?)`, `search_symbols(query, limit?, repo?)`, `repo_stats(repo?)`. The index is kept in memory and refreshed incrementally on every call.
+Tools: `pack_context(target, depth?, direction?, max_tokens?, format?, repo?)`, `search_symbols(query, limit?, repo?)`, `repo_stats(repo?)`. Full agent playbook: [AGENT_GUIDE.md](AGENT_GUIDE.md).
 
----
+<details>
+<summary><b>HTTP / WebSocket API</b></summary>
 
-## Web UI (`ast-pack --ui`)
-
-`ast-pack --ui` starts the local server on `127.0.0.1:7878` and opens the web app in your browser. Nothing leaves your machine; the page talks to the local server over a WebSocket.
-
-- **Command bar** (`Ctrl/⌘ K`): fuzzy symbol search as you type, `↑ ↓ ⇥ ↵` navigation, recent queries, "did you mean" suggestions when nothing matches. Pasting a stack trace packs it immediately, and every in-repo frame becomes an entry point.
-- **Live call graph**: a force-directed canvas. The entry point sits in the centre, callers pull to the left, callees to the right, and types and constants settle below. Nodes pop in with spring physics, staggered by hop. Call edges animate source → target. The crash site of a trace gets a red pulse. Hover a node to see its neighbourhood, click it to jump to its code, double-click it to re-root the slice there. Drag to pan, scroll to zoom, `F` to fit.
-- **Hop depth slider** (`[` / `]`, `0`–`6`): a sparkline above the track shows the bundle size at every depth. Neighbouring depths are prefetched, so moving the slider typically updates the graph and counter in under 50 ms. Measured on Hono: 16–27 ms.
-- **Savings counter**: rolling-digit "Saved 96.6%" with a progress ring and `753k → 25.3k tokens`.
-- **Code preview**: the bundle file by file, syntax-highlighted by Shiki in a Web Worker, with original line numbers. Pruned regions are expandable pills ("14 lines pruned · notFoundHandler, errorHandler · −109 tok") that load the hidden lines on demand. Trace frames get a clickable crash panel. Hovering code highlights the symbol in the graph, and hovering the graph highlights the code.
-- **Copy optimized prompt** (`C` or `Ctrl/⌘ ⇧ C`) in Markdown, XML or plain. You can attach an optional task prompt, and the options popover covers the token budget, type definitions, test files, exact edges and comment stripping.
-- Light and dark themes (`T`), `\` toggles the code pane, and `?` lists every shortcut.
-
-The page is a React + TypeScript app in `ui/` (Tailwind CSS, Framer Motion, Lucide icons, d3-force, Shiki). Its production build is committed to `src/ast_pack/web/`, so `pip install` ships it with no Node.js needed. To work on it:
-
-```bash
-ast-pack serve -C /path/to/repo        # API on :7878
-cd ui && npm install && npm run dev    # Vite on :5173, proxies /api and /ws to :7878
-npm run build                          # writes src/ast_pack/web/
-node e2e/smoke.mjs                     # end-to-end test against a real server in Chromium
-```
-
-## HTTP / WebSocket API
-
-`ast-pack serve` watches the repository and re-indexes changed files. Connected pages receive an `index_updated` push and re-pack automatically.
+`ast-pack serve` watches the repository and re-indexes changed files; connected pages receive an `index_updated` push and re-pack automatically. Requests must carry a local `Host`, and browsers may only connect from the UI's own origin (or the Vite dev server); origin-less clients such as curl and agents are fine.
 
 | endpoint | purpose |
 |---|---|
@@ -347,7 +376,10 @@ node e2e/smoke.mjs                     # end-to-end test against a real server i
 | `GET /api` | human-readable API index (with Schema.org JSON-LD) |
 | `WS /ws` | `pack` / `search` / `file` / `graph` messages; `pack` is latest-wins per `channel` (`main`, `prefetch`, `profile`) |
 
-## Python library API
+</details>
+
+<details>
+<summary><b>Python library API</b></summary>
 
 ```python
 from ast_pack import RepoIndex, PackOptions, pack
@@ -361,42 +393,42 @@ for node in result.to_dict()["nodes"]:
 index.refresh()  # re-parse only changed files
 ```
 
----
+</details>
 
-## How it works
+## ⚠️ Limitations
 
-```text
-scanner ──► extractors (Tree-sitter, per language) ──► RepoIndex ──► slicer ──► renderer ──► bundle
-  git ls-files        symbols · refs · imports            name resolution     BFS callers/   line plan:
-  .gitignore          field types · local types           call/type/value     callees +      full / outline /
-  size & vendor       comment lines                       edges + reverse     type closure   header + pruned
-  filters             (parallel, cached by mtime)         index               + budget       markers
+- Resolution is static and name-based, not a type checker: dynamic dispatch, monkey-patching, reflection, dependency-injection containers and calls through untyped values can be missed or (with confidence < 1) over-included. Use `--min-confidence 1.0` for exact edges only.
+- Callers reached only through interfaces/traits (Go interface satisfaction, Rust `dyn Trait`) are not linked to their implementations.
+- Macros (Rust) and code-generating decorators are treated as references, not expanded.
+- Supported languages: Python, TypeScript, TSX, JavaScript/JSX, Go, Rust. Other files are ignored.
+- `tree-sitter` is pinned below 0.26 because the 0.26.0 Python binding crashes on some real-world files.
+
+## 🤝 Contributing
+
+```bash
+git clone https://github.com/ginckl/ast-pack && cd ast-pack
+pip install -e ".[dev]" && pytest -q
 ```
 
-- **Extraction** (`src/ast_pack/extractors/`): one Tree-sitter walker per language records symbols with exact ranges (doc comments, decorators and attributes included), outline anchors (where bodies start), imports, and every referenced name with its receiver (`self.repo.save` → `save` on `self.repo`). Parameters, locals and loop variables are filtered; typed parameters and struct/class fields record their types.
-- **Resolution** (`src/ast_pack/index.py`): bare names resolve through the file, its imports (following re-export chains), and language scope (Go package directories, Rust crates). Member calls resolve through `self`/`this`/receivers, declared field types, typed locals, module aliases and base classes/traits. Calls on values of unknown type are matched by name only when at most three methods share it and the name is not ubiquitous (`get`, `close`, …), with confidence < 1.
-- **Slicing** (`src/ast_pack/slicer.py`): two breadth-first walks (callees and callers) that never mix, a per-node fan-out cap that prefers nearby code, then a closure over type and value edges.
-- **Rendering** (`src/ast_pack/render.py`): a per-file line plan; Python classes that lose every statement get `...`; markers that would cost more tokens than the code they hide are replaced by the code.
+UI work lives in `ui/` (React, TypeScript, Tailwind, Framer Motion, d3-force, Shiki): `npm ci && npm run dev`, then `npm run build` and `node e2e/smoke.mjs`. See [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md) and the [changelog](CHANGELOG.md). Machine-readable docs: [llms.txt](llms.txt), [llms-full.txt](llms-full.txt), [schema.json](schema.json).
 
----
+If ast-pack saved you tokens, a ⭐ helps other developers find it.
 
-## Limitations
+## 👤 Author
 
-- Resolution is static and name-based, not a type checker: dynamic dispatch, monkey-patching, reflection, dependency injection containers and calls through untyped values can be missed or (with confidence < 1) over-included. Use `--min-confidence 1.0` for exact edges only.
-- Callers reached only through interfaces/traits (Go interface satisfaction, Rust `dyn Trait`) are not linked to their implementations.
-- Macros (Rust) and decorators that generate code are treated as references, not expanded.
-- Supported languages: Python, TypeScript, TSX, JavaScript/JSX, Go, Rust. Other files are ignored.
-- `tree-sitter` 0.26.0's Python binding crashes on some real-world files, so the dependency is pinned below 0.26 until that is fixed upstream.
+<div align="center">
 
----
+<h3>Azimxon Vaxobov · <i>Ginckl</i></h3>
+<p>Creator and maintainer of ast-pack</p>
 
-## Contributing, citation, license
+<a href="https://azimxonvaxobov.netlify.app"><img alt="Website" src="https://img.shields.io/badge/Website-azimxonvaxobov.netlify.app-0b0d12?style=for-the-badge&logo=netlify&logoColor=white"/></a>
+<a href="https://www.linkedin.com/in/azimxon-vaxobov/"><img alt="LinkedIn" src="https://img.shields.io/badge/LinkedIn-azimxon--vaxobov-0A66C2?style=for-the-badge&logo=linkedin&logoColor=white"/></a>
+<a href="https://t.me/A_Vakhobov"><img alt="Telegram" src="https://img.shields.io/badge/Telegram-@A__Vakhobov-26A5E4?style=for-the-badge&logo=telegram&logoColor=white"/></a>
+<a href="https://github.com/ginckl"><img alt="GitHub" src="https://img.shields.io/badge/GitHub-ginckl-181717?style=for-the-badge&logo=github&logoColor=white"/></a>
 
-- Tests: `pip install -e ".[dev]" && pytest`
-- Benchmarks: `python benchmarks/bench.py` · validity: `python benchmarks/validity.py <repo>`
-- Machine-readable docs: [llms.txt](llms.txt), [llms-full.txt](llms-full.txt), [AGENT_GUIDE.md](AGENT_GUIDE.md), [schema.json](schema.json)
-- Cite: see [CITATION.cff](CITATION.cff)
-- License: [MIT](LICENSE)
+</div>
+
+Using ast-pack in research or a write-up? Cite it via [CITATION.cff](CITATION.cff) (GitHub's "Cite this repository" button). Released under the [MIT License](LICENSE) © 2026 Azimxon Vaxobov (Ginckl).
 
 ---
 
@@ -520,6 +552,10 @@ Tools: `pack_context` (`target`, `depth`, `direction`, `max_tokens`, `format`, `
 ## Limits to keep in mind
 
 Resolution is static: dynamic dispatch, reflection, monkey-patching and DI containers can hide edges; Go interface and Rust `dyn Trait` call sites are not linked to implementations. Test files are excluded from the walk unless the target is a test or `--include-tests` is set.
+
+---
+
+ast-pack is created and maintained by Azimxon Vaxobov (Ginckl) — https://azimxonvaxobov.netlify.app · https://www.linkedin.com/in/azimxon-vaxobov/ · https://t.me/A_Vakhobov
 
 ---
 

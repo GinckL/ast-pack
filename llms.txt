@@ -30,6 +30,8 @@ HTTP/WebSocket API (`ast-pack serve`, 127.0.0.1:7878): `GET /api/health`, `GET /
 
 Architecture: scanner (git ls-files / .gitignore) → per-language Tree-sitter extractors (symbols, references with receivers, imports, field and local types) → RepoIndex (cross-file name resolution → call/type/value edges + reverse index, mtime parse cache) → slicer (separate caller and callee BFS with fan-out cap, type/constant closure, token budget) → renderer (full / outline / header line plans, pruned markers, used imports only).
 
+Author: Azimxon Vaxobov (Ginckl) — https://azimxonvaxobov.netlify.app · https://www.linkedin.com/in/azimxon-vaxobov/ · https://t.me/A_Vakhobov · License: MIT.
+
 ## Docs
 
 - [README](https://github.com/ginckl/ast-pack/blob/main/README.md): overview, Q&A, comparison matrix, CLI reference

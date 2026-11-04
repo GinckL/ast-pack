@@ -14,8 +14,10 @@ abstract: >-
   than the full repositories, and 6,605 rendered files re-parsed without
   syntax errors.
 authors:
-  - name: "ast-pack contributors"
-    website: "https://github.com/ginckl/ast-pack"
+  - given-names: Azimxon
+    family-names: Vaxobov
+    alias: Ginckl
+    website: "https://azimxonvaxobov.netlify.app"
 repository-code: "https://github.com/ginckl/ast-pack"
 url: "https://github.com/ginckl/ast-pack"
 license: MIT

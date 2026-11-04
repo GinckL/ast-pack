@@ -225,7 +225,7 @@ export function CommandBar({ inputRef }: { inputRef: React.RefObject<HTMLTextAre
           )}
         </AnimatePresence>
         <AnimatePresence initial={false}>
-          {trace && (
+          {trace && focused && (
             <motion.div
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: "auto", opacity: 1 }}

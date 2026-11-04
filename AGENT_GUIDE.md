@@ -118,3 +118,7 @@ Tools: `pack_context` (`target`, `depth`, `direction`, `max_tokens`, `format`, `
 ## Limits to keep in mind
 
 Resolution is static: dynamic dispatch, reflection, monkey-patching and DI containers can hide edges; Go interface and Rust `dyn Trait` call sites are not linked to implementations. Test files are excluded from the walk unless the target is a test or `--include-tests` is set.
+
+---
+
+ast-pack is created and maintained by Azimxon Vaxobov (Ginckl) — https://azimxonvaxobov.netlify.app · https://www.linkedin.com/in/azimxon-vaxobov/ · https://t.me/A_Vakhobov

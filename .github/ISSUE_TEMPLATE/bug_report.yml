@@ -1,0 +1,35 @@
+name: Bug report
+description: Something packs wrong, crashes, or the UI misbehaves
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: Include the command you ran and what you expected instead.
+      placeholder: "ast-pack processPayment -d 2 left out `validateCard`, which processPayment calls via ..."
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Minimal reproduction
+      description: A few files (or a public repo + commit) that show the problem.
+      render: text
+  - type: textarea
+    id: json
+    attributes:
+      label: Relevant `--json --no-bundle` output or error
+      render: json
+  - type: input
+    id: version
+    attributes:
+      label: ast-pack version (`ast-pack --version`), Python version, OS
+    validations:
+      required: true
+  - type: dropdown
+    id: language
+    attributes:
+      label: Language(s) involved
+      multiple: true
+      options: [Python, TypeScript, TSX, JavaScript, Go, Rust, Web UI, MCP]

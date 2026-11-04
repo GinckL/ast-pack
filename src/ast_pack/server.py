@@ -157,7 +157,62 @@ def _json_error(message: str, status: int = 400) -> JSONResponse:
     return JSONResponse({"ok": False, "error": {"message": message}}, status_code=status)
 
 
-def create_app(index: RepoIndex, watch_interval: float = 1.0) -> Starlette:
+LOCAL_HOSTS = ("127.0.0.1", "localhost", "::1", "[::1]")
+
+
+def _hostname(value: str) -> str:
+    """``host:port`` / ``[::1]:port`` / ``http://host:port`` -> ``host``."""
+    if "://" in value:
+        value = value.split("://", 1)[1]
+    value = value.split("/", 1)[0]
+    if value.startswith("["):
+        return value[1 : value.find("]")] if "]" in value else value
+    return value.rsplit(":", 1)[0] if value.count(":") == 1 else value
+
+
+class LocalOnlyMiddleware:
+    """Defends the local API against DNS rebinding and cross-site requests.
+
+    The server exposes repository source code, so every HTTP request must
+    carry a ``Host`` naming this machine, and browsers may only open the
+    WebSocket or call the API from the UI's own origin (or the Vite dev
+    server). Requests without an ``Origin`` header (curl, scripts, agents)
+    are allowed.
+    """
+
+    def __init__(self, app, allowed_hosts: tuple[str, ...], allowed_origins: tuple[str, ...]) -> None:
+        self.app = app
+        self.any_host = "*" in allowed_hosts
+        self.hosts = {h.strip("[]").lower() for h in allowed_hosts}
+        self.origins = {o.rstrip("/").lower() for o in allowed_origins}
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] not in ("http", "websocket"):
+            return await self.app(scope, receive, send)
+        headers = {k.decode("latin-1").lower(): v.decode("latin-1") for k, v in scope.get("headers", [])}
+        host = _hostname(headers.get("host", "")).lower()
+        origin = headers.get("origin")
+        ok = self.any_host or host in self.hosts
+        if ok and origin and origin != "null":
+            o = origin.rstrip("/").lower()
+            netloc = o.split("://", 1)[-1]
+            # Exact dev-server origin, or same origin as this request (host *and* port).
+            ok = o in self.origins or netloc == headers.get("host", "").lower()
+        if ok:
+            return await self.app(scope, receive, send)
+        if scope["type"] == "websocket":
+            await send({"type": "websocket.close", "code": 1008})
+            return
+        body = b'{"ok": false, "error": {"message": "forbidden host or origin"}}'
+        await send({"type": "http.response.start", "status": 403, "headers": [(b"content-type", b"application/json")]})
+        await send({"type": "http.response.body", "body": body})
+
+
+def create_app(
+    index: RepoIndex,
+    watch_interval: float = 1.0,
+    allowed_hosts: tuple[str, ...] = LOCAL_HOSTS,
+) -> Starlette:
     state = AppState(index, watch_interval)
 
     async def run(fn, *a):
@@ -351,7 +406,10 @@ def create_app(index: RepoIndex, watch_interval: float = 1.0) -> Starlette:
 
     app = Starlette(
         routes=routes,
-        middleware=[Middleware(CORSMiddleware, allow_origins=_ALLOWED_ORIGINS, allow_methods=["*"], allow_headers=["*"])],
+        middleware=[
+            Middleware(LocalOnlyMiddleware, allowed_hosts=allowed_hosts, allowed_origins=tuple(_ALLOWED_ORIGINS)),
+            Middleware(CORSMiddleware, allow_origins=_ALLOWED_ORIGINS, allow_methods=["*"], allow_headers=["*"]),
+        ],
         lifespan=lifespan,
     )
     app.state.ast_pack = state
@@ -373,6 +431,13 @@ def _api_page(index: RepoIndex) -> str:
         "runtimePlatform": "Python 3.10+",
         "codeRepository": "https://github.com/ginckl/ast-pack",
         "license": "https://opensource.org/licenses/MIT",
+        "author": {
+            "@type": "Person",
+            "name": "Azimxon Vaxobov",
+            "alternateName": "Ginckl",
+            "url": "https://azimxonvaxobov.netlify.app",
+            "sameAs": ["https://www.linkedin.com/in/azimxon-vaxobov/", "https://t.me/A_Vakhobov", "https://github.com/ginckl"],
+        },
         "description": "Tree-sitter call-graph context packer: turns a symbol, file:line or stack trace into a minimal, syntactically valid LLM prompt.",
     }
     stats = index.stats()
@@ -402,13 +467,15 @@ body{{margin:0;background:var(--bg);color:var(--fg);font:15px/1.55 ui-sans-serif
 main{{max-width:880px;margin:0 auto;padding:48px 16px}}
 h1{{font-size:28px;margin:0 0 4px}}p{{color:var(--mut)}}code{{font:13px ui-monospace,SFMono-Regular,Menlo,monospace}}
 table{{width:100%;border-collapse:collapse;margin:16px 0 32px}}td,th{{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line)}}
-th{{color:var(--mut);font-weight:500}}.k{{color:var(--acc)}}
+th{{color:var(--mut);font-weight:500}}.k{{color:var(--acc)}}a{{color:var(--acc)}}
 </style></head><body><main>
 <h1>ast-pack <span class="k">{__version__}</span></h1>
 <p>API server for <code>{html.escape(str(index.root))}</code> · {stats['files']:,} files · {stats['symbols']:,} symbols · {stats['edges']:,} edges · {stats['tokens']:,} tokens ({html.escape(stats['tokenizer'])}).
 The web UI bundle is not installed in this build, so this page lists the API it uses.</p>
 <table><tr><th>Language</th><th>Files</th><th>Symbols</th><th>Tokens</th></tr>{rows}</table>
 <table><tr><th>Method</th><th>Path</th><th>Purpose</th></tr>{ep}</table>
+<p>Created by <a href="https://azimxonvaxobov.netlify.app">Azimxon Vaxobov (Ginckl)</a> ·
+<a href="https://www.linkedin.com/in/azimxon-vaxobov/">LinkedIn</a> · <a href="https://t.me/A_Vakhobov">Telegram</a></p>
 </main></body></html>"""
 
 
@@ -438,7 +505,16 @@ def run_server(
             chosen = candidate
             break
     url = f"http://{host}:{chosen}/"
-    app = create_app(index, watch_interval)
+    if host in ("0.0.0.0", "::", ""):
+        hosts: tuple[str, ...] = ("*",)
+        print(
+            "ast-pack: WARNING: listening on all interfaces exposes this repository's source code "
+            "to your network. Use --host 127.0.0.1 unless you mean it.",
+            file=sys.stderr,
+        )
+    else:
+        hosts = tuple(dict.fromkeys((*LOCAL_HOSTS, host)))
+    app = create_app(index, watch_interval, allowed_hosts=hosts)
     st = index.stats()
     if json_mode:
         print(json.dumps({"schema_version": "1.0", "tool": "ast-pack", "version": __version__, "command": "serve",

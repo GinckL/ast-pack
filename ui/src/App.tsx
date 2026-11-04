@@ -146,15 +146,16 @@ export default function App() {
           <div className="absolute inset-0 grid place-items-center px-8">
             <EmptyHero />
           </div>
-          <div className="absolute bottom-4 left-4">
-            <Legend />
+          <div className="absolute inset-x-4 bottom-4 flex items-end gap-3">
+            <div className="w-[150px] shrink-0">
+              <Legend />
+            </div>
+            <div className="flex min-w-0 flex-1 justify-center">
+              <ControlDock />
+            </div>
+            <div className="hidden w-[150px] shrink-0 2xl:block" />
           </div>
-          <div className="absolute bottom-4 left-1/2 -translate-x-1/2">
-            <ControlDock />
-          </div>
-          <div className="absolute bottom-5 right-4 hidden text-[11px] text-faint xl:block">
-            drag to pan · scroll to zoom · double-click a node to re-root · <kbd className="kbd">?</kbd>
-          </div>
+
         </div>
       </main>
 

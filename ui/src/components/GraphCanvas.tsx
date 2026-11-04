@@ -770,35 +770,57 @@ function draw(ctx: CanvasRenderingContext2D, e: Engine, now: number) {
     }
   }
 
-  // Labels (constant screen size)
+  // Labels: constant screen size, greedy collision avoidance in screen space
+  // (entry point, hover and selection first, then near hops and big symbols).
   ctx.textAlign = "center";
   ctx.textBaseline = "top";
-  for (const n of ordered) {
-    if (n.s < 0.6) continue;
+  const candidates = ordered
+    .filter((n) => {
+      if (n.s < 0.6) return false;
+      const isHover = n.id === hoverId;
+      const dimmed = focusSet && !focusSet.has(n.id);
+      return (
+        isHover ||
+        n.id === selectedId ||
+        (!idle && (n.role === "seed" || (!dimmed && cam.k > 0.45)))
+      );
+    })
+    .sort((a, b) => labelRank(a, hoverId, selectedId) - labelRank(b, hoverId, selectedId));
+  const placed: [number, number, number, number][] = [];
+  for (const n of candidates) {
     const isHover = n.id === hoverId;
-    const dimmed = focusSet && !focusSet.has(n.id);
-    const show =
-      isHover ||
-      n.id === selectedId ||
-      (!idle && (n.role === "seed" || (!dimmed && cam.k > 0.62))) ||
-      false;
-    if (!show) continue;
-    const fs = (n.role === "seed" ? 12.5 : 11) * px;
-    ctx.font = `${n.role === "seed" || isHover ? 600 : 500} ${fs}px Inter, ui-sans-serif, system-ui`;
+    const important = isHover || n.role === "seed" || n.id === selectedId;
+    const fsPx = n.role === "seed" ? 12.5 : 11;
+    const fs = fsPx * px;
+    ctx.font = `${important ? 600 : 500} ${fs}px Inter, ui-sans-serif, system-ui`;
     const text = n.label.length > 34 && !isHover ? n.label.slice(0, 32) + "…" : n.label;
+    const tw = ctx.measureText(text).width / px; // screen px
+    const sx = (n.x! - cam.x) * cam.k + w / 2;
+    const sy = (n.y! - cam.y) * cam.k + h / 2 + VIEW_OFFSET_Y + n.r * n.s * cam.k + 6;
+    const rect: [number, number, number, number] = [sx - tw / 2 - 4, sy - 2, sx + tw / 2 + 4, sy + fsPx + 4];
+    if (!important && placed.some((r) => rect[0] < r[2] && rect[2] > r[0] && rect[1] < r[3] && rect[3] > r[1])) continue;
+    placed.push(rect);
     const y = n.y! + n.r * n.s + 6 * px;
+    const dimmed = focusSet && !focusSet.has(n.id);
     const alpha = Math.min(1, (n.s - 0.6) / 0.4) * (dimmed ? 0.25 : 1);
-    if (isHover || n.role === "seed") {
-      const tw = ctx.measureText(text).width;
-      ctx.fillStyle = p.panel.replace("rgb(", "rgba(").replace(")", `, ${0.82 * alpha})`);
+    if (important) {
+      ctx.fillStyle = p.panel.replace("rgb(", "rgba(").replace(")", `, ${0.85 * alpha})`);
       ctx.beginPath();
-      roundRect(ctx, n.x! - tw / 2 - 6 * px, y - 2.5 * px, tw + 12 * px, fs + 6 * px, 6 * px);
+      roundRect(ctx, n.x! - (tw / 2 + 6) * px, y - 2.5 * px, (tw + 12) * px, fs + 6 * px, 6 * px);
       ctx.fill();
     }
-    ctx.fillStyle = rgba(isHover || n.role === "seed" ? p.rgb.fg : p.rgb.fg, (isHover || n.role === "seed" ? 1 : idle ? 0.55 : 0.72) * alpha);
+    ctx.fillStyle = rgba(p.rgb.fg, (important ? 1 : 0.72) * alpha);
     ctx.fillText(text, n.x!, y);
   }
   ctx.setTransform(1, 0, 0, 1, 0, 0);
+}
+
+function labelRank(n: GNode, hoverId: string | null, selectedId: string | null): number {
+  if (n.id === hoverId) return -3;
+  if (n.id === selectedId) return -2;
+  if (n.role === "seed") return -1;
+  const roleBias = n.role === "callee" || n.role === "caller" ? 0 : 0.5;
+  return n.hop + roleBias - Math.min(n.r, 22) / 40;
 }
 
 function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {

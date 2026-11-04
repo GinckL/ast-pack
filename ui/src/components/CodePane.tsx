@@ -6,6 +6,7 @@ import { tokenize, type Tok } from "../lib/highlight";
 import { useStore } from "../lib/store";
 import type { FileRender, Format, PackResult, Segment, SliceNode } from "../lib/types";
 import { CopyButton } from "./CopyButton";
+import { CreditInline } from "./Credit";
 
 const LANG_DOT: Record<string, string> = {
   python: "#3b82f6",
@@ -163,6 +164,13 @@ export function CodePane({ copy }: { copy: CopyProps }) {
           <EmptyCode />
         )}
       </div>
+      <footer className="flex items-center gap-2 border-t border-line/70 px-4 py-2 text-[11px]">
+        <span className="font-semibold text-mute">ast-pack</span>
+        <CreditInline />
+        <span className="ml-auto flex items-center gap-1 text-faint">
+          shortcuts <kbd className="kbd">?</kbd>
+        </span>
+      </footer>
     </div>
   );
 }

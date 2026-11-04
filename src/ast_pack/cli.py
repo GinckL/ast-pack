@@ -139,7 +139,10 @@ def build_parser() -> argparse.ArgumentParser:
             "ast-pack walks callers/callees, pulls the types and constants they need, prunes "
             "everything else and prints a dense, syntactically valid bundle."
         ),
-        epilog="Run `ast-pack <command> --help` for command options. `ast-pack --ui` opens the web UI.",
+        epilog=(
+            "Run `ast-pack <command> --help` for command options. `ast-pack --ui` opens the web UI. "
+            "Created by Azimxon Vaxobov (Ginckl) · https://azimxonvaxobov.netlify.app"
+        ),
     )
     parser.add_argument("--version", action="version", version=f"ast-pack {__version__}")
     sub = parser.add_subparsers(dest="command", metavar="COMMAND")

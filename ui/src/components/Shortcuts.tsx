@@ -1,6 +1,7 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { modKey } from "../lib/format";
 import { useStore } from "../lib/store";
+import { CreditCard } from "./Credit";
 
 const GROUPS: { title: string; items: [string[], string][] }[] = [
   {
@@ -86,6 +87,7 @@ export function Shortcuts() {
                 </div>
               ))}
             </div>
+            <CreditCard />
           </motion.div>
         </motion.div>
       )}
