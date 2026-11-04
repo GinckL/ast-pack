@@ -1,0 +1,38 @@
+cff-version: 1.2.0
+message: "If you use ast-pack in research or publications, please cite it using these metadata."
+type: software
+title: "ast-pack: Tree-sitter call-graph slicing for minimal, syntactically valid LLM code context"
+abstract: >-
+  ast-pack parses a source repository (Python, TypeScript/TSX, JavaScript/JSX,
+  Go, Rust) with Tree-sitter into a cross-file symbol and call graph. Starting
+  from an entry point given as a symbol name, a file:line location or a raw
+  stack trace, it walks callers and callees up to a configurable hop depth,
+  adds the type definitions and constants that the reached code references,
+  prunes all unrelated code into one-line markers, and emits a syntactically
+  valid context bundle with exact file and line headers for large language
+  models. On seven open-source repositories the bundles were 87-98.7% smaller
+  than the full repositories, and 6,605 rendered files re-parsed without
+  syntax errors.
+authors:
+  - name: "ast-pack contributors"
+    website: "https://github.com/ginckl/ast-pack"
+repository-code: "https://github.com/ginckl/ast-pack"
+url: "https://github.com/ginckl/ast-pack"
+license: MIT
+version: "0.1.0"
+keywords:
+  - large language models
+  - LLM context
+  - context window
+  - prompt engineering
+  - token reduction
+  - program slicing
+  - call graph
+  - static analysis
+  - abstract syntax tree
+  - tree-sitter
+  - code search
+  - stack trace
+  - debugging
+  - AI coding agents
+  - Model Context Protocol

@@ -1,0 +1,22 @@
+# ast-pack — rules for Cursor and other AI editors
+
+## Using ast-pack to get context (any project)
+
+- When the user asks about, debugs, or wants to change a specific function, method, class or a stack trace, get focused context with ast-pack instead of opening many whole files:
+  - `ast-pack <symbol> -d 2 --json` (symbol may be `name`, `Class.method`, `path/file.py::name`, or `file:line`)
+  - stack traces: pipe the output, e.g. `pytest -x 2>&1 | ast-pack --json`
+  - callers before a refactor: `ast-pack <symbol> --direction callers -d 3 --json --no-bundle`
+  - tight context budget: add `--max-tokens 8000`
+- Install if missing: `python -m pip install ast-pack` (fallback: `python -m pip install "git+https://github.com/ginckl/ast-pack"`).
+- Parse stdout as one JSON document (see schema.json). Check `ok`; on exit code 2 retry with a name from `error.suggestions`.
+- Treat `# ⋯ N lines pruned (La-Lb): names` / `// ⋯ …` as code intentionally omitted; read those lines from disk only if needed.
+- Treat edges with `confidence < 1` as unverified.
+
+## Working on the ast-pack repository itself
+
+- Python 3.10+, package in `src/ast_pack/`, tests in `tests/` (`pytest -q`), fixture repo in `tests/fixtures/polyglot/` (Python, TypeScript/TSX, Go, Rust).
+- Pipeline: `scanner.py` → `extractors/` (Tree-sitter, one module per language) → `index.py` (resolution, edges) → `slicer.py` (graph walk) → `render.py` (line plans, markers) → `engine.py` (`pack()` API) → `cli.py` / `server.py` / `mcp.py`.
+- Every rendered file must stay syntactically valid; `tests/test_pack.py::test_every_rendered_file_is_syntactically_valid` and `benchmarks/validity.py` enforce it.
+- Bump `EXTRACTOR_VERSION` in `extractors/__init__.py` whenever extraction output changes (invalidates the parse cache).
+- Keep `--json` output backwards compatible with `schema.json`; extend the schema in the same change.
+- Keep `tree-sitter` pinned below 0.26 (0.26.0's Python binding segfaults on real files).

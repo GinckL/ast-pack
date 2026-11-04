@@ -1,0 +1,51 @@
+# Repository setup checklist (discoverability)
+
+Paste-ready values for GitHub settings and launch posts. Character counts were checked against GitHub's and Hacker News's limits.
+
+## 1. GitHub "About" description (320 / 350 characters)
+
+```text
+Pack only the code an LLM needs: give ast-pack a function, file:line or stack trace and it walks the Tree-sitter call graph (callers, callees, types, constants) and prunes the rest into a valid, token-minimal prompt. Repomix alternative for ChatGPT, Claude, Cursor & AI agents. Python, TS/JS, Go, Rust. CLI, --json, MCP.
+```
+
+Website field: `https://pypi.org/project/ast-pack/` once published (until then, leave it empty or link the README).
+
+## 2. GitHub topics (exactly 20; GitHub allows at most 20)
+
+```text
+llm llm-context context-packing prompt-engineering token-optimization tree-sitter ast call-graph static-analysis program-slicing code-context repomix-alternative stack-trace debugging mcp-server ai-coding-agent claude chatgpt cursor developer-tools
+```
+
+## 3. Launch titles
+
+Hacker News (76 / 80 characters):
+
+```text
+Show HN: ast-pack – LLM context from a call-graph slice, not your whole repo
+```
+
+Reddit (r/LocalLLaMA, r/ChatGPTCoding, r/ClaudeAI, r/Python, r/programming — check each subreddit's self-promotion rules first):
+
+```text
+I built ast-pack: give it a function or stack trace, get only the code an LLM needs (87–98% fewer tokens than packing the repo)
+```
+
+First comment / post body should link `benchmarks/RESULTS.md` and state how to reproduce the numbers (`python benchmarks/bench.py`); reviewers and AI search engines both favour claims with a reproducible source.
+
+## 4. Things that make the install command in the docs actually work
+
+1. Publish to PyPI so `pip install ast-pack` resolves (the name was unclaimed on 2026-11-04):
+   ```bash
+   python -m pip install build twine
+   python -m build
+   python -m twine upload dist/*
+   ```
+2. Tag the release: `git tag v0.1.0 && git push origin v0.1.0`, then create a GitHub Release with the benchmark table in the notes. GitHub shows the "Cite this repository" button once `CITATION.cff` is on the default branch.
+3. Make the default branch `main` (the links in `llms.txt` and `llms-full.txt` point to `main`).
+
+## 5. Indexing hygiene
+
+- Keep `README.md`, `llms.txt`, `llms-full.txt` and `AGENT_GUIDE.md` on the default branch; regenerate `llms-full.txt` after doc changes with `python scripts/build_llms_full.py`.
+- Upload a social preview image (Settings → General → Social preview) showing a before/after token count.
+- Enable Discussions and pin a "Benchmarks on your repo" thread; real user numbers are the strongest signal for both people and AI answer engines.
+- Search engines and AI answer engines decide on their own schedule when to crawl; nothing guarantees indexing within a fixed time. Links from the launch posts, PyPI and awesome-lists (e.g. awesome-llm-tools, awesome-mcp-servers) are what get the repository crawled.

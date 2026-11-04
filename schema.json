@@ -1,0 +1,226 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/ginckl/ast-pack/blob/main/schema.json",
+  "title": "ast-pack --json output",
+  "description": "Every ast-pack command run with --json prints exactly one JSON document matching one of these shapes. Discriminate on `command` and `ok`. Exit code 0 = success, 1 = error, 2 = nothing matched / bad usage.",
+  "oneOf": [
+    { "$ref": "#/$defs/packResult" },
+    { "$ref": "#/$defs/searchResult" },
+    { "$ref": "#/$defs/statsResult" },
+    { "$ref": "#/$defs/serveResult" },
+    { "$ref": "#/$defs/errorResult" }
+  ],
+  "$defs": {
+    "envelope": {
+      "type": "object",
+      "required": ["schema_version", "tool", "version", "command", "ok"],
+      "properties": {
+        "schema_version": { "const": "1.0" },
+        "tool": { "const": "ast-pack" },
+        "version": { "type": "string" },
+        "command": { "enum": ["pack", "trace", "search", "stats", "serve", null] },
+        "ok": { "type": "boolean" }
+      }
+    },
+    "errorResult": {
+      "allOf": [{ "$ref": "#/$defs/envelope" }],
+      "type": "object",
+      "required": ["error"],
+      "properties": {
+        "ok": { "const": false },
+        "error": {
+          "type": "object",
+          "required": ["message", "exit_code"],
+          "properties": {
+            "message": { "type": "string" },
+            "exit_code": { "type": "integer", "enum": [1, 2] },
+            "suggestions": { "type": "array", "items": { "type": "string" }, "description": "closest symbol names when nothing matched" }
+          }
+        }
+      }
+    },
+    "symbol": {
+      "type": "object",
+      "required": ["id", "name", "qualname", "kind", "language", "path", "start_line", "end_line", "signature", "tokens"],
+      "properties": {
+        "id": { "type": "string", "description": "stable id: <path>::<qualname> (with @L<line> if duplicated)" },
+        "name": { "type": "string" },
+        "qualname": { "type": "string", "description": "e.g. Gateway.charge, Ledger.Append" },
+        "kind": { "enum": ["function", "method", "macro", "class", "struct", "interface", "trait", "enum", "type", "union", "const", "variable", "static", "module", "impl", "block"] },
+        "language": { "enum": ["python", "typescript", "tsx", "javascript", "rust", "go"] },
+        "path": { "type": "string", "description": "repository-relative POSIX path" },
+        "start_line": { "type": "integer", "minimum": 1, "description": "1-based, includes leading doc comments / decorators" },
+        "end_line": { "type": "integer", "minimum": 1 },
+        "signature": { "type": "string" },
+        "tokens": { "type": "integer", "description": "tokens of the full symbol source" },
+        "score": { "type": "number", "description": "search only" }
+      }
+    },
+    "node": {
+      "allOf": [{ "$ref": "#/$defs/symbol" }],
+      "type": "object",
+      "required": ["hop", "role", "mode", "via", "via_kind", "confidence"],
+      "properties": {
+        "hop": { "type": "integer", "minimum": 0, "description": "call-graph distance from the nearest seed" },
+        "role": { "enum": ["seed", "callee", "caller", "type", "value", "container"] },
+        "mode": { "enum": ["full", "outline", "header"], "description": "full source, signatures only, or container header" },
+        "via": { "type": ["string", "null"], "description": "id of the node that pulled this one in" },
+        "via_kind": { "enum": ["calls", "called_by", "uses_type", "uses_value", "contains", null] },
+        "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+        "truncated_neighbors": { "type": "integer", "description": "callers/callees skipped by --max-fanout" }
+      }
+    },
+    "edge": {
+      "type": "object",
+      "required": ["source", "target", "kind", "confidence", "line"],
+      "properties": {
+        "source": { "type": "string" },
+        "target": { "type": "string" },
+        "kind": { "enum": ["call", "type", "value"] },
+        "confidence": { "type": "number", "description": "1.0 = resolved through definitions/imports/types; <1 = name match on an untyped receiver" },
+        "line": { "type": "integer" }
+      }
+    },
+    "segment": {
+      "type": "object",
+      "required": ["kind", "start", "end", "text", "symbols", "tokens"],
+      "properties": {
+        "kind": { "enum": ["code", "pruned"] },
+        "start": { "type": "integer" },
+        "end": { "type": "integer" },
+        "text": { "type": "string", "description": "rendered code, or the one-line pruned marker" },
+        "symbols": { "type": "array", "items": { "type": "string" }, "description": "pruned: names of the definitions hidden" },
+        "tokens": { "type": "integer", "description": "code: rendered tokens; pruned: tokens hidden" }
+      }
+    },
+    "file": {
+      "type": "object",
+      "required": ["path", "language", "ranges", "symbols", "file_tokens", "file_lines", "kept_tokens"],
+      "properties": {
+        "path": { "type": "string" },
+        "language": { "type": "string" },
+        "ranges": { "type": "array", "items": { "type": "array", "items": { "type": "integer" }, "minItems": 2, "maxItems": 2 } },
+        "symbols": { "type": "array", "items": { "type": "string" } },
+        "file_tokens": { "type": "integer" },
+        "file_lines": { "type": "integer" },
+        "kept_tokens": { "type": "integer" },
+        "segments": { "type": "array", "items": { "$ref": "#/$defs/segment" }, "description": "omitted with --no-bundle" },
+        "text": { "type": "string", "description": "omitted with --no-bundle" }
+      }
+    },
+    "frame": {
+      "type": "object",
+      "properties": {
+        "path": { "type": "string", "description": "path as printed in the trace" },
+        "line": { "type": "integer" },
+        "function": { "type": ["string", "null"] },
+        "repo_path": { "type": ["string", "null"], "description": "matching repository file, null if outside the repo" },
+        "symbol": { "type": ["string", "null"] }
+      }
+    },
+    "packResult": {
+      "allOf": [{ "$ref": "#/$defs/envelope" }],
+      "type": "object",
+      "required": ["query", "seeds", "stats", "nodes", "edges", "files", "dropped", "warnings", "suggestions", "trace", "depth_profile"],
+      "properties": {
+        "command": { "const": "pack" },
+        "query": {
+          "type": "object",
+          "properties": {
+            "targets": { "type": "array", "items": { "type": "string" } },
+            "kind": { "enum": ["symbol", "file_line", "file", "trace", "mixed"] },
+            "depth": { "type": "integer" },
+            "direction": { "enum": ["both", "callers", "callees"] },
+            "max_tokens": { "type": ["integer", "null"] },
+            "format": { "enum": ["markdown", "xml", "plain"] }
+          }
+        },
+        "seeds": { "type": "array", "items": { "type": "string" } },
+        "stats": {
+          "type": "object",
+          "required": ["symbols", "files", "bundle_tokens", "repo_tokens", "touched_file_tokens", "saved_pct", "saved_vs_files_pct", "tokenizer", "tokenizer_exact", "elapsed_ms"],
+          "properties": {
+            "symbols": { "type": "integer" },
+            "files": { "type": "integer" },
+            "bundle_tokens": { "type": "integer" },
+            "repo_tokens": { "type": "integer" },
+            "touched_file_tokens": { "type": "integer", "description": "tokens of the touched files in full" },
+            "saved_pct": { "type": "number" },
+            "saved_vs_files_pct": { "type": "number" },
+            "tokenizer": { "type": "string", "description": "cl100k_base, o200k_base or approx" },
+            "tokenizer_exact": { "type": "boolean" },
+            "elapsed_ms": { "type": "number" },
+            "index_generation": { "type": "integer" }
+          }
+        },
+        "nodes": { "type": "array", "items": { "$ref": "#/$defs/node" } },
+        "edges": { "type": "array", "items": { "$ref": "#/$defs/edge" } },
+        "files": { "type": "array", "items": { "$ref": "#/$defs/file" } },
+        "bundle": { "type": "string", "description": "the prompt-ready context; omitted with --no-bundle" },
+        "dropped": { "type": "array", "items": { "type": "string" }, "description": "symbol ids removed to meet --max-tokens" },
+        "warnings": { "type": "array", "items": { "type": "string" } },
+        "suggestions": { "type": "array", "items": { "type": "string" } },
+        "trace": {
+          "type": ["object", "null"],
+          "properties": {
+            "language": { "enum": ["python", "javascript", "go", "rust", "unknown"] },
+            "error": { "type": ["string", "null"] },
+            "crash_site": { "oneOf": [{ "$ref": "#/$defs/frame" }, { "type": "null" }] },
+            "frames": { "type": "array", "items": { "$ref": "#/$defs/frame" } }
+          }
+        },
+        "depth_profile": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": { "depth": { "type": "integer" }, "symbols": { "type": "integer" }, "files": { "type": "integer" }, "tokens": { "type": "integer" } }
+          }
+        },
+        "output_file": { "type": ["string", "null"] },
+        "copied_to_clipboard": { "type": ["boolean", "null"] }
+      }
+    },
+    "searchResult": {
+      "allOf": [{ "$ref": "#/$defs/envelope" }],
+      "type": "object",
+      "required": ["query", "results"],
+      "properties": {
+        "command": { "const": "search" },
+        "query": { "type": "string" },
+        "results": { "type": "array", "items": { "$ref": "#/$defs/symbol" } }
+      }
+    },
+    "statsResult": {
+      "allOf": [{ "$ref": "#/$defs/envelope" }],
+      "type": "object",
+      "required": ["root", "files", "symbols", "edges", "tokens", "languages"],
+      "properties": {
+        "command": { "const": "stats" },
+        "root": { "type": "string" },
+        "files": { "type": "integer" },
+        "symbols": { "type": "integer" },
+        "edges": { "type": "integer" },
+        "tokens": { "type": "integer" },
+        "lines": { "type": "integer" },
+        "tokenizer": { "type": "string" },
+        "languages": { "type": "object", "additionalProperties": { "type": "object" } },
+        "symbol_kinds": { "type": "object" },
+        "edge_kinds": { "type": "object" },
+        "parse_errors": { "type": "integer" },
+        "timing": { "type": "object" }
+      }
+    },
+    "serveResult": {
+      "allOf": [{ "$ref": "#/$defs/envelope" }],
+      "type": "object",
+      "required": ["url", "ws"],
+      "properties": {
+        "command": { "const": "serve" },
+        "url": { "type": "string" },
+        "ws": { "type": "string" },
+        "root": { "type": "string" },
+        "ui": { "type": "boolean" }
+      }
+    }
+  }
+}
